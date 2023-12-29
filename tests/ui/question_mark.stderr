@@ -102,21 +102,43 @@ LL | |     }
    | |_____^ help: replace it with: `f()?;`
 
 error: this block may be rewritten with the `?` operator
-  --> $DIR/question_mark.rs:143:13
+  --> $DIR/question_mark.rs:147:13
    |
 LL |     let _ = if let Ok(x) = x { x } else { return x };
    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace it with: `x?`
 
 error: this block may be rewritten with the `?` operator
-  --> $DIR/question_mark.rs:145:5
+  --> $DIR/question_mark.rs:149:5
    |
 LL | /     if x.is_err() {
 LL | |         return x;
 LL | |     }
    | |_____^ help: replace it with: `x?;`
 
+error: this block may be rewritten with `Result::or` and the `?` operator
+  --> $DIR/question_mark.rs:153:13
+   |
+LL |       let _ = if let Ok(x) = x {
+   |  _____________^
+LL | |         x
+LL | |     } else {
+LL | |         return Err(0);
+LL | |     };
+   | |_____^ help: replace it with: `x.or(Err(0))?`
+
+error: this block may be rewritten with `Result::or` and the `?` operator
+  --> $DIR/question_mark.rs:165:13
+   |
+LL |       let _ = if let Ok(x) = func_returning_result() {
+   |  _____________^
+LL | |         x
+LL | |     } else {
+LL | |         return Err(0);
+LL | |     };
+   | |_____^ help: replace it with: `func_returning_result().or(Err(0))?`
+
 error: this block may be rewritten with the `?` operator
-  --> $DIR/question_mark.rs:213:5
+  --> $DIR/question_mark.rs:226:5
    |
 LL | /     if let Err(err) = func_returning_result() {
 LL | |         return Err(err);
@@ -124,7 +146,7 @@ LL | |     }
    | |_____^ help: replace it with: `func_returning_result()?;`
 
 error: this block may be rewritten with the `?` operator
-  --> $DIR/question_mark.rs:220:5
+  --> $DIR/question_mark.rs:233:5
    |
 LL | /     if let Err(err) = func_returning_result() {
 LL | |         return Err(err);
@@ -132,14 +154,12 @@ LL | |     }
    | |_____^ help: replace it with: `func_returning_result()?;`
 
 error: this block may be rewritten with the `?` operator
-  --> $DIR/question_mark.rs:297:13
+  --> $DIR/question_mark.rs:312:13
    |
 LL | /             if a.is_none() {
 LL | |                 return None;
-LL | |                 // do lint here, the outer `try` is not relevant here
-LL | |                 // https://github.com/rust-lang/rust-clippy/pull/11001#issuecomment-1610636867
 LL | |             }
    | |_____________^ help: replace it with: `a?;`
 
-error: aborting due to 16 previous errors
+error: aborting due to 18 previous errors
 

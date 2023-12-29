@@ -364,30 +364,19 @@ LL +     };
    |
 
 error: this could be rewritten as `let...else`
-  --> $DIR/manual_let_else.rs:212:13
-   |
-LL |             let $n = if let Some(v) = $e { v } else { return };
-   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: consider writing: `let Some($n) = g() else { return };`
-...
-LL |     create_binding_if_some!(w, g());
-   |     ------------------------------- in this macro invocation
-   |
-   = note: this error originates in the macro `create_binding_if_some` (in Nightly builds, run with -Z macro-backtrace for more info)
-
-error: this could be rewritten as `let...else`
-  --> $DIR/manual_let_else.rs:221:5
+  --> $DIR/manual_let_else.rs:213:5
    |
 LL |     let v = if let Variant::A(a, 0) = e() { a } else { return };
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: consider writing: `let Variant::A(v, 0) = e() else { return };`
 
 error: this could be rewritten as `let...else`
-  --> $DIR/manual_let_else.rs:225:5
+  --> $DIR/manual_let_else.rs:217:5
    |
 LL |     let mut v = if let Variant::B(b) = e() { b } else { return };
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: consider writing: `let Variant::B(mut v) = e() else { return };`
 
 error: this could be rewritten as `let...else`
-  --> $DIR/manual_let_else.rs:230:5
+  --> $DIR/manual_let_else.rs:222:5
    |
 LL | /     let v = if let Ok(Some(Variant::B(b))) | Err(Some(Variant::A(b, _))) = nested {
 LL | |
@@ -405,19 +394,19 @@ LL +     };
    |
 
 error: this could be rewritten as `let...else`
-  --> $DIR/manual_let_else.rs:237:5
+  --> $DIR/manual_let_else.rs:229:5
    |
 LL |     let v = if let Variant::A(.., a) = e() { a } else { return };
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: consider writing: `let Variant::A(.., v) = e() else { return };`
 
 error: this could be rewritten as `let...else`
-  --> $DIR/manual_let_else.rs:241:5
+  --> $DIR/manual_let_else.rs:233:5
    |
 LL |     let w = if let (Some(v), ()) = (g(), ()) { v } else { return };
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: consider writing: `let (Some(w), ()) = (g(), ()) else { return };`
 
 error: this could be rewritten as `let...else`
-  --> $DIR/manual_let_else.rs:245:5
+  --> $DIR/manual_let_else.rs:237:5
    |
 LL | /     let w = if let Some(S { v: x }) = Some(S { v: 0 }) {
 LL | |
@@ -435,7 +424,7 @@ LL +     };
    |
 
 error: this could be rewritten as `let...else`
-  --> $DIR/manual_let_else.rs:253:5
+  --> $DIR/manual_let_else.rs:245:5
    |
 LL | /     let v = if let Some(S { v: x }) = Some(S { v: 0 }) {
 LL | |
@@ -453,7 +442,7 @@ LL +     };
    |
 
 error: this could be rewritten as `let...else`
-  --> $DIR/manual_let_else.rs:261:5
+  --> $DIR/manual_let_else.rs:253:5
    |
 LL | /     let (x, S { v }, w) = if let Some(U { v, w, x }) = None::<U<S<()>>> {
 LL | |
@@ -480,5 +469,5 @@ LL | |         _ => macro_call!(),
 LL | |     };
    | |______^ help: consider writing: `let Some(_) = ff else { macro_call!() };`
 
-error: aborting due to 30 previous errors
+error: aborting due to 29 previous errors
 

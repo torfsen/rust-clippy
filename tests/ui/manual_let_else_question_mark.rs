@@ -1,3 +1,4 @@
+#![feature(try_blocks)]
 #![allow(unused_braces, unused_variables, dead_code)]
 #![allow(
     clippy::collapsible_else_if,
@@ -14,35 +15,199 @@ enum Variant {
     C,
 }
 
-fn g() -> Option<(u8, u8)> {
-    None
+fn add_one(x: u8) -> u8 {
+    x + 1
 }
 
-fn e() -> Variant {
+async fn add_one_async(x: u8) -> u8 {
+    x + 1
+}
+
+const fn add_one_const(x: u8) -> u8 {
+    x + 1
+}
+
+fn tuple_option() -> Option<(u8, u8)> {
+    Some((1, 2))
+}
+
+fn tuple_result() -> Result<(u8, u8), u8> {
+    Ok((1, 2))
+}
+
+fn variant() -> Variant {
     Variant::A(0, 0)
+}
+
+macro_rules! let_some_else_err {
+    ( $x:ident, $y:expr, $z: expr ) => {
+        let Some($x) = $y else { return Err($z) };
+    };
+}
+
+macro_rules! let_some_else_none {
+    ( $x:ident, $y:expr ) => {
+        let Some($x) = $y else { return None };
+    };
+}
+
+macro_rules! let_ok_else_err {
+    ( $x:ident, $y:expr, $z: expr ) => {
+        let Ok($x) = $y else { return Err($z) };
+    };
+}
+macro_rules! let_ok_else_none {
+    ( $x:ident, $y:expr ) => {
+        let Ok($x) = $y else { return None };
+    };
+}
+
+macro_rules! if_let_some_else_err {
+    ( $x1:ident, $x2:ident, $y:expr, $z: expr ) => {
+        let $x1 = if let Some($x2) = $y { $x2 } else { return Err($z) };
+    };
+}
+
+macro_rules! if_let_some_else_none {
+    ( $x1:ident, $x2:ident, $y:expr ) => {
+        let $x1 = if let Some($x2) = $y { $x2 } else { return None };
+    };
+}
+
+macro_rules! if_let_ok_else_err {
+    ( $x1:ident, $x2:ident, $y:expr, $z: expr ) => {
+        let $x1 = if let Ok($x2) = $y { $x2 } else { return Err($z) };
+    };
+}
+
+macro_rules! if_let_ok_else_none {
+    ( $x1:ident, $x2:ident, $y:expr ) => {
+        let $x1 = if let Ok($x2) = $y { $x2 } else { return None };
+    };
+}
+
+macro_rules! add_one {
+    ( $x: expr ) => {
+        $x + 1
+    };
 }
 
 fn main() {}
 
-fn foo() -> Option<()> {
-    // Fire here, normal case
-    let Some(v) = g() else { return None };
+// FIXME: A lot of this should probably be in the `question_mark.rs` test file
 
-    // Don't fire here, the pattern is refutable
-    let Variant::A(v, w) = e() else { return None };
+// Input `Option`, return `None` => Suggest `?`
+fn option_none() -> Option<u8> {
+    // CASES THAT SHOULD TRIGGER A LINT
 
-    // Fire here, the pattern is irrefutable
-    let Some((v, w)) = g() else { return None };
+    // `let` without semicolon
+    let Some(v) = tuple_option() else { return None };
 
-    // Don't fire manual_let_else in this instance: question mark can be used instead.
-    let v = if let Some(v_some) = g() { v_some } else { return None };
+    // `let` with semicolon
+    let Some(v) = tuple_option() else {
+        return None;
+    };
+
+    // `let` with a more complex pattern
+    let Some((v, w)) = tuple_option() else { return None };
+
+    //  `if let` without semicolon
+    let v = if let Some(v_some) = tuple_option() {
+        v_some
+    } else {
+        return None;
+    };
+
+    //  `if let` with semicolon
+    let v = if let Some(v_some) = tuple_option() {
+        v_some
+    } else {
+        return None;
+    };
+
+    // CASES THAT COULD TRIGGER A LINT BUT ARE CURRENTLY NOT IMPLEMENTED
+
+    // `if let` with a more complex pattern
+    let v = if let Some((v_some, w_some)) = tuple_option() {
+        (v_some, w_some)
+    } else {
+        return None;
+    };
+
+    // CASES THAT SHOULDN'T TRIGGER A LINT
+
+    // `let` with a refutable pattern
+    let Some((1, x)) = tuple_option() else { return None };
+
+    // `if let` with a refutable pattern
+    if let Some((1, x)) = tuple_option() {
+        (1, x)
+    } else {
+        return None;
+    };
+
+    // Not `Option`
+    let Variant::B(v) = variant() else { return None };
+
+    // "then" block doesn't match argument to `Some`
+    let v = if let Some(v_some) = tuple_option() {
+        (v_some.0, 1)
+    } else {
+        return None;
+    };
+
+    // More than one statement in the `else` block
+    let Some(v_some) = tuple_option() else {
+        let _ = "foo";
+        return None;
+    };
+    #[allow(clippy::manual_let_else)]
+    {
+        let v = if let Some(v_some) = tuple_option() {
+            v_some
+        } else {
+            let _ = "foo";
+            return None;
+        };
+    }
+
+    // Comment in the `else` block
+    let Some(v_some) = tuple_option() else {
+        // Roses are red,
+        // violets are blue,
+        // please keep this comment,
+        // it's art, you know?
+        return None;
+    };
+    // FIXME: Should the following be kept in manual_let_else_question_mark?
+    #[allow(clippy::manual_let_else)]
+    {
+        let v = if let Some(v_some) = tuple_option() {
+            v_some
+        } else {
+            // foo
+            return None;
+        };
+    }
+
+    // FIXME: Is `?` usable in `const`?
+    const fn _f2(v: Option<u8>) -> Option<u8> {
+        let Some(v_some) = v else { return None };
+        Some(1)
+    }
+
+    // `let` generated by a macro
+    let_some_else_none!(v, tuple_option());
+
+    // `if let` generated by a macro
+    if_let_some_else_none!(v, v_some, tuple_option());
 
     // Do fire manual_let_else in this instance: question mark cannot be used here due to the return
     // body.
-    let v = if let Some(v_some) = g() {
+    let v = if let Some(v_some) = tuple_option() {
         v_some
     } else {
-        return Some(());
+        return Some(1);
     };
 
     // Here we could also fire the question_mark lint, but we don't (as it's a match and not an if let).
@@ -50,7 +215,7 @@ fn foo() -> Option<()> {
     // lint, so for rustfix reasons, we allow the question_mark lint here.
     #[allow(clippy::question_mark)]
     {
-        let v = match g() {
+        let v = match tuple_option() {
             Some(v_some) => v_some,
             _ => return None,
         };
@@ -60,37 +225,733 @@ fn foo() -> Option<()> {
     // it. Make sure that manual_let_else is fired as the fallback.
     #[allow(clippy::question_mark)]
     {
-        let v = if let Some(v_some) = g() { v_some } else { return None };
+        let v = if let Some(v_some) = tuple_option() {
+            v_some
+        } else {
+            return None;
+        };
     }
 
-    Some(())
+    Some(1)
 }
 
-// lint not just `return None`, but also `return None;` (note the semicolon)
-fn issue11993(y: Option<i32>) -> Option<i32> {
-    let Some(x) = y else {
+// Input `Option`, return `Err` with constant argument => Suggest `Option::ok_or` + `?`
+fn option_err_ok_or() -> Result<u8, u8> {
+    // CASES THAT SHOULD TRIGGER A LINT
+
+    // `let` without semicolon
+    let Some(v) = tuple_option() else { return Err(1) };
+
+    // `let` with semicolon
+    let Some(v) = tuple_option() else {
+        return Err(1);
+    };
+
+    // `let` with a more complex pattern
+    let Some((v, w)) = tuple_option() else {
+        return Err(1);
+    };
+
+    //  `if let` without semicolon
+    let v = if let Some(v_some) = tuple_option() {
+        v_some
+    } else {
+        return Err(1);
+    };
+
+    //  `if let` with semicolon
+    let v = if let Some(v_some) = tuple_option() {
+        v_some
+    } else {
+        return Err(1);
+    };
+
+    // `let` with a macro in the argument to `Err`
+    let Some(v) = tuple_option() else {
+        return Err(add_one!(1));
+    };
+
+    // `if let` with a macro in the argument to `Err`
+    let v = if let Some(v_some) = tuple_option() {
+        v_some
+    } else {
+        return Err(add_one!(1));
+    };
+
+    // Nested function inside a `try` block
+    // https://github.com/rust-lang/rust-clippy/pull/11001#issuecomment-1610636867
+    let _: Result<u8, u8> = try {
+        fn foo() -> Result<u8, u8> {
+            let _ = if let Some(v_some) = tuple_option() {
+                v_some
+            } else {
+                return Err(1);
+            };
+            Ok(1)
+        }
+        1
+    };
+
+    // CASES THAT COULD TRIGGER A LINT BUT ARE CURRENTLY NOT IMPLEMENTED
+
+    // `if let` with a more complex pattern
+    let v = if let Some((v_some, w_some)) = tuple_option() {
+        (v_some, w_some)
+    } else {
+        return Err(1);
+    };
+
+    // CASES THAT SHOULDN'T TRIGGER A LINT
+
+    // `let` with a refutable pattern
+    let Some((1, x)) = tuple_option() else {
+        return Err(1);
+    };
+
+    // `if let` with a refutable pattern
+    if let Some((1, x)) = tuple_option() {
+        (1, x)
+    } else {
+        return Err(1);
+    };
+
+    // Not `Option`
+    let Variant::B(v) = variant() else { return Err(1) };
+
+    // "then" block doesn't match argument to `Some`
+    let v = if let Some(v_some) = tuple_option() {
+        (v_some.0, 1)
+    } else {
+        return Err(1);
+    };
+
+    // More than one statement in the `else` block
+    let Some(v_some) = tuple_option() else {
+        let _ = "foo";
+        return Err(1);
+    };
+    #[allow(clippy::manual_let_else)]
+    {
+        let v = if let Some(v_some) = tuple_option() {
+            v_some
+        } else {
+            let _ = "foo";
+            return Err(1);
+        };
+    }
+
+    // Comment in the `else` block
+    let Some(v_some) = tuple_option() else {
+        // Roses are red,
+        // violets are blue,
+        // please keep this comment,
+        // it's art, you know?
+        return Err(1);
+    };
+    #[allow(clippy::manual_let_else)]
+    {
+        let v = if let Some(v_some) = tuple_option() {
+            v_some
+        } else {
+            // foo
+            return Err(1);
+        };
+    }
+
+    // `ok_or` is not `const`
+    const fn _f2(v: Option<u8>) -> Result<u8, u8> {
+        let Some(v_some) = v else { return Err(1) };
+        Ok(1)
+    }
+
+    // `let` generated by a macro
+    let_some_else_err!(v, tuple_option(), 1);
+
+    // `if let` generated by a macro
+    if_let_some_else_err!(v, v_some, tuple_option(), 1);
+
+    // `?` is not the same as `return Err(..);` if inside of a try block (issue #8628)
+    let _: Result<u8, u8> = try {
+        let _ = if let Some(v_some) = tuple_option() {
+            v_some
+        } else {
+            return Err(1);
+        };
+        1
+    };
+
+    Ok(1)
+}
+
+// Input `Option`, return `Err` with non-constant argument. In theory we could suggest
+// `Option::ok_or_else` + `?` here, but getting the suggestion right in all special
+// cases is not trivial (see, for example, https://stackoverflow.com/q/78003329). Hence
+// we currently do not generate a question mark lint in these cases at all. However,
+// this means that some of the cases would generate a manual-let-else lint instead, so
+// we disable that lint here.
+#[allow(clippy::manual_let_else)]
+fn option_err_ok_or_else() -> Result<u8, u8> {
+    // SIMPLE CASES THAT SHOULD TRIGGER A QUESTION MARK LINT IF WE ADD SUPPORT
+
+    // `let` without semicolon
+    let Some(v) = tuple_option() else {
+        return Err(add_one(1));
+    };
+
+    // `let` with semicolon
+    let Some(v) = tuple_option() else {
+        return Err(add_one(1));
+    };
+
+    // `let` with a more complex pattern
+    let Some((v, w)) = tuple_option() else {
+        return Err(add_one(1));
+    };
+
+    //  `if let`
+    let v = if let Some(v_some) = tuple_option() {
+        v_some
+    } else {
+        return Err(add_one(1));
+    };
+
+    // `let` with a macro in the argument to `Err`
+    let Some(v) = tuple_option() else {
+        return Err(add_one!(add_one(1)));
+    };
+
+    // `if let` with a macro in the argument to `Err`
+    let v = if let Some(v_some) = tuple_option() {
+        v_some
+    } else {
+        return Err(add_one!(add_one(1)));
+    };
+
+    // COMPLEX CASES THAT COULD TRIGGER A QUESTION MARK LINT IF WE ADD SUPPORT
+
+    // `if let` with a more complex pattern
+    let v = if let Some((v_some, w_some)) = tuple_option() {
+        (v_some, w_some)
+    } else {
+        return Err(add_one(1));
+    };
+
+    // Nested function inside a `try` block
+    // https://github.com/rust-lang/rust-clippy/pull/11001#issuecomment-1610636867
+    let _: Result<u8, u8> = try {
+        fn foo() -> Result<u8, u8> {
+            let _ = if let Some(v_some) = tuple_option() {
+                v_some
+            } else {
+                return Err(add_one(1));
+            };
+            Ok(1)
+        }
+        1
+    };
+
+    // CASES THAT SHOULDN'T TRIGGER A LINT
+
+    // `let` with a refutable pattern
+    let Some((1, x)) = tuple_option() else {
+        return Err(add_one(1));
+    };
+
+    // `if let` with a refutable pattern
+    if let Some((1, x)) = tuple_option() {
+        (1, x)
+    } else {
+        return Err(add_one(1));
+    };
+
+    // Not `Option`
+    let Variant::B(v) = variant() else {
+        return Err(add_one(1));
+    };
+
+    // "then" block doesn't match argument to `Some`
+    let v = if let Some(v_some) = tuple_option() {
+        (v_some.0, 1)
+    } else {
+        return Err(add_one(1));
+    };
+
+    // More than one statement in the `else` block
+    let Some(v_some) = tuple_option() else {
+        let _ = "foo";
+        return Err(add_one(1));
+    };
+    #[allow(clippy::manual_let_else)]
+    {
+        let v = if let Some(v_some) = tuple_option() {
+            v_some
+        } else {
+            let _ = "foo";
+            return Err(add_one(1));
+        };
+    }
+
+    // Comment in the `else` block
+    let Some(v_some) = tuple_option() else {
+        // Roses are red,
+        // violets are blue,
+        // please keep this comment,
+        // it's art, you know?
+        return Err(add_one(1));
+    };
+    #[allow(clippy::manual_let_else)]
+    {
+        let v = if let Some(v_some) = tuple_option() {
+            v_some
+        } else {
+            // foo
+            return Err(add_one(1));
+        };
+    }
+
+    // `ok_or_else` is not `const`
+    const fn _f2(v: Option<u8>) -> Result<u8, u8> {
+        let Some(v_some) = v else { return Err(add_one_const(1)) };
+        Ok(1)
+    }
+
+    // `let` generated by a macro
+    let_some_else_err!(v, tuple_option(), add_one(1));
+
+    // `if let` generated by a macro
+    if_let_some_else_err!(v, v_some, tuple_option(), add_one(1));
+
+    // `await` can't be moved into a closure.
+    #[allow(clippy::manual_let_else)]
+    async fn _f1() -> Result<u8, u8> {
+        let v = if let Some(v_some) = tuple_option() {
+            v_some
+        } else {
+            return Err(add_one_async(1).await);
+        };
+        Ok(1)
+    }
+
+    // `?` is not the same as `return Err(..);` if inside of a try block (issue #8628)
+    let _: Result<u8, u8> = try {
+        let _ = if let Some(v_some) = tuple_option() {
+            v_some
+        } else {
+            return Err(add_one(1));
+        };
+        1
+    };
+
+    Ok(1)
+}
+
+// Input `Result`, return `None` => Suggest `Result::ok` + `?`
+fn result_none() -> Option<u8> {
+    // CASES THAT SHOULD TRIGGER A LINT
+
+    // `let` without semicolon
+    let Ok(v) = tuple_result() else { return None };
+
+    // `let` with semicolon
+    let Ok(v) = tuple_result() else {
         return None;
     };
 
-    let v = if let Some(v_some) = g() {
-        v_some
+    // `let` with a more complex pattern
+    let Ok((v, w)) = tuple_result() else { return None };
+
+    //  `if let` without semicolon
+    let v = if let Ok(v_ok) = tuple_result() {
+        v_ok
     } else {
         return None;
     };
 
-    // don't lint: more than one statement in the else body
-    let Some(x) = y else {
-        todo!();
+    //  `if let` with semicolon
+    let v = if let Ok(v_ok) = tuple_result() {
+        v_ok
+    } else {
         return None;
     };
 
-    let Some(x) = y else {
+    // CASES THAT COULD TRIGGER A LINT BUT ARE CURRENTLY NOT IMPLEMENTED
+
+    // `if let` with a more complex pattern
+    let v = if let Ok((v_ok, w_ok)) = tuple_result() {
+        (v_ok, w_ok)
+    } else {
+        return None;
+    };
+
+    // CASES THAT SHOULDN'T TRIGGER A LINT
+
+    // `let` with a refutable pattern
+    let Ok((1, x)) = tuple_result() else { return None };
+
+    // `if let` with a refutable pattern
+    if let Ok((1, x)) = tuple_result() {
+        (1, x)
+    } else {
+        return None;
+    };
+
+    // Not `Result`
+    let Variant::B(v) = variant() else { return None };
+
+    // "then" block doesn't match argument to `Ok`
+    let v = if let Ok(v_ok) = tuple_result() {
+        (v_ok.0, 1)
+    } else {
+        return None;
+    };
+
+    // More than one statement in the `else` block
+    let Ok(v_ok) = tuple_result() else {
+        let _ = "foo";
+        return None;
+    };
+    #[allow(clippy::manual_let_else)]
+    {
+        let v = if let Ok(v_ok) = tuple_result() {
+            v_ok
+        } else {
+            let _ = "foo";
+            return None;
+        };
+    }
+
+    // Comment in the `else` block
+    let Ok(v_ok) = tuple_result() else {
         // Roses are red,
         // violets are blue,
         // please keep this comment,
         // it's art, you know?
         return None;
     };
+    #[allow(clippy::manual_let_else)]
+    {
+        let v = if let Ok(v_ok) = tuple_result() {
+            v_ok
+        } else {
+            // foo
+            return None;
+        };
+    }
 
-    None
+    // FIXME: Check if this is `const`
+    // `or` is not `const`
+    const fn _f2(v: Result<u8, u8>) -> Option<u8> {
+        let Ok(v_ok) = v else { return None };
+        Some(1)
+    }
+
+    // `let` generated by a macro
+    let_ok_else_none!(v, tuple_result());
+
+    // `if let` generated by a macro
+    if_let_ok_else_none!(v, v_ok, tuple_result());
+
+    Some(1)
+}
+
+// Input `Result`, return `Err` with constant argument => Suggest `Result::or` + `?`
+fn result_err_or() -> Result<u8, u8> {
+    // CASES THAT SHOULD TRIGGER A LINT
+
+    // `let` without semicolon
+    let Ok(v) = tuple_result() else { return Err(1) };
+
+    // `let` with semicolon
+    let Ok(v) = tuple_result() else {
+        return Err(1);
+    };
+
+    // `let` with a more complex pattern
+    let Ok((v, w)) = tuple_result() else { return Err(1) };
+
+    //  `if let` without semicolon
+    let v = if let Ok(v_ok) = tuple_result() {
+        v_ok
+    } else {
+        return Err(1);
+    };
+
+    //  `if let` with semicolon
+    let v = if let Ok(v_ok) = tuple_result() {
+        v_ok
+    } else {
+        return Err(1);
+    };
+
+    // `let` with a macro in the argument to `Err`
+    let Ok(v) = tuple_result() else {
+        return Err(add_one!(1));
+    };
+
+    // `if let` with a macro in the argument to `Err`
+    let v = if let Ok(v_ok) = tuple_result() {
+        v_ok
+    } else {
+        return Err(add_one!(1));
+    };
+
+    // Nested function inside a `try` block
+    // https://github.com/rust-lang/rust-clippy/pull/11001#issuecomment-1610636867
+    let _: Result<u8, u8> = try {
+        fn foo() -> Result<u8, u8> {
+            let _ = if let Ok(v_ok) = tuple_result() {
+                v_ok
+            } else {
+                return Err(1);
+            };
+            Ok(1)
+        }
+        1
+    };
+
+    // CASES THAT COULD TRIGGER A LINT BUT ARE CURRENTLY NOT IMPLEMENTED
+
+    // `if let` with a more complex pattern
+    let v = if let Ok((v_ok, w_ok)) = tuple_result() {
+        (v_ok, w_ok)
+    } else {
+        return Err(1);
+    };
+
+    // CASES THAT SHOULDN'T TRIGGER A LINT
+
+    // `let` with a refutable pattern
+    let Ok((1, x)) = tuple_result() else { return Err(1) };
+
+    // `if let` with a refutable pattern
+    if let Ok((1, x)) = tuple_result() {
+        (1, x)
+    } else {
+        return Err(1);
+    };
+
+    // Not `Result`
+    let Variant::B(v) = variant() else { return Err(1) };
+
+    // "then" block doesn't match argument to `Ok`
+    let v = if let Ok(v_ok) = tuple_result() {
+        (v_ok.0, 1)
+    } else {
+        return Err(1);
+    };
+
+    // More than one statement in the `else` block
+    let Ok(v_ok) = tuple_result() else {
+        let _ = "foo";
+        return Err(1);
+    };
+    #[allow(clippy::manual_let_else)]
+    {
+        let v = if let Ok(v_ok) = tuple_result() {
+            v_ok
+        } else {
+            let _ = "foo";
+            return Err(1);
+        };
+    }
+
+    // Comment in the `else` block
+    let Ok(v_ok) = tuple_result() else {
+        // Roses are red,
+        // violets are blue,
+        // please keep this comment,
+        // it's art, you know?
+        return Err(1);
+    };
+    #[allow(clippy::manual_let_else)]
+    {
+        let v = if let Ok(v_ok) = tuple_result() {
+            v_ok
+        } else {
+            // foo
+            return Err(1);
+        };
+    }
+
+    // `or` is not `const`
+    const fn _f2(v: Result<u8, u8>) -> Result<u8, u8> {
+        let Ok(v_ok) = v else { return Err(1) };
+        Ok(1)
+    }
+
+    // `let` generated by a macro
+    let_ok_else_err!(v, tuple_result(), 1);
+
+    // `if let` generated by a macro
+    if_let_ok_else_err!(v, v_ok, tuple_result(), 1);
+
+    // `?` is not the same as `return Err(..);` if inside of a try block (issue #8628)
+    let _: Result<u8, u8> = try {
+        let _ = if let Ok(v_ok) = tuple_result() {
+            v_ok
+        } else {
+            return Err(1);
+        };
+        1
+    };
+
+    Ok(1)
+}
+
+// Input `Result`, return `Err` with non-constant argument. Currently we do not generate
+// suggestions here, see `option_err_ok_or_else` above.
+#[allow(clippy::manual_let_else)]
+fn result_err_map_err() -> Result<u8, u8> {
+    // SIMPLE CASES THAT SHOULD TRIGGER A QUESTION MARK LINT IF WE ADD SUPPORT
+
+    // `let` without semicolon
+    let Ok(v) = tuple_result() else {
+        return Err(add_one(1));
+    };
+
+    // `let` with semicolon
+    let Ok(v) = tuple_result() else {
+        return Err(add_one(1));
+    };
+
+    // `let` with a more complex pattern
+    let Ok((v, w)) = tuple_result() else {
+        return Err(add_one(1));
+    };
+
+    //  `if let`
+    let v = if let Ok(v_ok) = tuple_result() {
+        v_ok
+    } else {
+        return Err(add_one(1));
+    };
+
+    // `let` with a macro in the argument to `Err`
+    let Ok(v) = tuple_result() else {
+        return Err(add_one!(add_one(1)));
+    };
+
+    // `if let` with a macro in the argument to `Err`
+    let v = if let Ok(v_ok) = tuple_result() {
+        v_ok
+    } else {
+        return Err(add_one!(add_one(1)));
+    };
+
+    // Nested function inside a `try` block
+    // https://github.com/rust-lang/rust-clippy/pull/11001#issuecomment-1610636867
+    let _: Result<u8, u8> = try {
+        fn foo() -> Result<u8, u8> {
+            let _ = if let Ok(v_ok) = tuple_result() {
+                v_ok
+            } else {
+                return Err(add_one(1));
+            };
+            Ok(1)
+        }
+        1
+    };
+
+    // COMPLEX CASES THAT COULD TRIGGER A QUESTION MARK LINT IF WE ADD SUPPORT
+
+    // `if let` with a more complex pattern
+    let v = if let Ok((v_ok, w_ok)) = tuple_result() {
+        (v_ok, w_ok)
+    } else {
+        return Err(add_one(1));
+    };
+
+    // CASES THAT SHOULDN'T TRIGGER A LINT
+
+    // `let` with a refutable pattern
+    let Ok((1, x)) = tuple_result() else {
+        return Err(add_one(1));
+    };
+
+    // `if let` with a refutable pattern
+    if let Ok((1, x)) = tuple_result() {
+        (1, x)
+    } else {
+        return Err(add_one(1));
+    };
+
+    // Not `Option`
+    let Variant::B(v) = variant() else {
+        return Err(add_one(1));
+    };
+
+    // "then" block doesn't match argument to `Ok`
+    let v = if let Ok(v_ok) = tuple_result() {
+        (v_ok.0, 1)
+    } else {
+        return Err(add_one(1));
+    };
+
+    // More than one statement in the `else` block
+    let Ok(v_ok) = tuple_result() else {
+        let _ = "foo";
+        return Err(add_one(1));
+    };
+    #[allow(clippy::manual_let_else)]
+    {
+        let v = if let Ok(v_ok) = tuple_result() {
+            v_ok
+        } else {
+            let _ = "foo";
+            return Err(add_one(1));
+        };
+    }
+
+    // Comment in the `else` block
+    let Ok(v_ok) = tuple_result() else {
+        // Roses are red,
+        // violets are blue,
+        // please keep this comment,
+        // it's art, you know?
+        return Err(add_one(1));
+    };
+    #[allow(clippy::manual_let_else)]
+    {
+        let v = if let Ok(v_ok) = tuple_result() {
+            v_ok
+        } else {
+            // foo
+            return Err(add_one(1));
+        };
+    }
+
+    // `map_err` is not `const`
+    const fn _f2(v: Result<u8, u8>) -> Result<u8, u8> {
+        let Ok(v_ok) = v else { return Err(add_one_const(1)) };
+        Ok(1)
+    }
+
+    // `let` generated by a macro
+    let_ok_else_err!(v, tuple_result(), add_one(1));
+
+    // `if let` generated by a macro
+    if_let_ok_else_err!(v, v_ok, tuple_result(), add_one(1));
+
+    // `await` can't be moved into a closure.
+    #[allow(clippy::manual_let_else)]
+    async fn _f1() -> Result<u8, u8> {
+        let v = if let Ok(v_ok) = tuple_result() {
+            v_ok
+        } else {
+            return Err(add_one_async(1).await);
+        };
+        Ok(1)
+    }
+
+    // `?` is not the same as `return Err(..);` if inside of a try block (issue #8628)
+    let _: Result<u8, u8> = try {
+        let _ = if let Ok(v_ok) = tuple_result() {
+            v_ok
+        } else {
+            return Err(add_one(1));
+        };
+        1
+    };
+
+    Ok(1)
 }

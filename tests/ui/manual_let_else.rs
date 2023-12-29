@@ -206,14 +206,6 @@ fn fire() {
         return;
     };
 
-    // entirely inside macro lints
-    macro_rules! create_binding_if_some {
-        ($n:ident, $e:expr) => {
-            let $n = if let Some(v) = $e { v } else { return };
-        };
-    }
-    create_binding_if_some!(w, g());
-
     fn e() -> Variant {
         Variant::A(0, 0)
     }
@@ -340,6 +332,14 @@ fn not_fire() {
         };
         Some(v)
     }
+
+    // entirely inside macro lints
+    macro_rules! create_binding_if_some {
+        ($n:ident, $e:expr) => {
+            let $n = if let Some(v) = $e { v } else { return };
+        };
+    }
+    create_binding_if_some!(w, g());
 
     // Macro boundary inside let
     macro_rules! some_or_return {

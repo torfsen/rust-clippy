@@ -1,31 +1,55 @@
 error: this `let...else` may be rewritten with the `?` operator
-  --> $DIR/manual_let_else_question_mark.rs:29:5
+  --> $DIR/manual_let_else_question_mark.rs:104:5
    |
-LL |     let Some(v) = g() else { return None };
-   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace it with: `let v = g()?;`
+LL |     let Some(v) = tuple_option() else { return None };
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace it with: `let v = tuple_option()?;`
    |
    = note: `-D clippy::question-mark` implied by `-D warnings`
    = help: to override `-D warnings` add `#[allow(clippy::question_mark)]`
 
 error: this `let...else` may be rewritten with the `?` operator
-  --> $DIR/manual_let_else_question_mark.rs:35:5
+  --> $DIR/manual_let_else_question_mark.rs:107:5
    |
-LL |     let Some((v, w)) = g() else { return None };
-   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace it with: `let (v, w) = g()?;`
+LL | /     let Some(v) = tuple_option() else {
+LL | |         return None;
+LL | |     };
+   | |______^ help: replace it with: `let v = tuple_option()?;`
+
+error: this `let...else` may be rewritten with the `?` operator
+  --> $DIR/manual_let_else_question_mark.rs:112:5
+   |
+LL |     let Some((v, w)) = tuple_option() else { return None };
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace it with: `let (v, w) = tuple_option()?;`
 
 error: this block may be rewritten with the `?` operator
-  --> $DIR/manual_let_else_question_mark.rs:38:13
+  --> $DIR/manual_let_else_question_mark.rs:115:13
    |
-LL |     let v = if let Some(v_some) = g() { v_some } else { return None };
-   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace it with: `g()?`
-
-error: this could be rewritten as `let...else`
-  --> $DIR/manual_let_else_question_mark.rs:42:5
-   |
-LL | /     let v = if let Some(v_some) = g() {
+LL |       let v = if let Some(v_some) = tuple_option() {
+   |  _____________^
 LL | |         v_some
 LL | |     } else {
-LL | |         return Some(());
+LL | |         return None;
+LL | |     };
+   | |_____^ help: replace it with: `tuple_option()?`
+
+error: this block may be rewritten with the `?` operator
+  --> $DIR/manual_let_else_question_mark.rs:122:13
+   |
+LL |       let v = if let Some(v_some) = tuple_option() {
+   |  _____________^
+LL | |         v_some
+LL | |     } else {
+LL | |         return None;
+LL | |     };
+   | |_____^ help: replace it with: `tuple_option()?`
+
+error: this could be rewritten as `let...else`
+  --> $DIR/manual_let_else_question_mark.rs:207:5
+   |
+LL | /     let v = if let Some(v_some) = tuple_option() {
+LL | |         v_some
+LL | |     } else {
+LL | |         return Some(1);
 LL | |     };
    | |______^
    |
@@ -33,44 +57,224 @@ LL | |     };
    = help: to override `-D warnings` add `#[allow(clippy::manual_let_else)]`
 help: consider writing
    |
-LL ~     let Some(v) = g() else {
-LL +         return Some(());
+LL ~     let Some(v) = tuple_option() else {
+LL +         return Some(1);
 LL +     };
    |
 
 error: this could be rewritten as `let...else`
-  --> $DIR/manual_let_else_question_mark.rs:53:9
+  --> $DIR/manual_let_else_question_mark.rs:218:9
    |
-LL | /         let v = match g() {
+LL | /         let v = match tuple_option() {
 LL | |             Some(v_some) => v_some,
 LL | |             _ => return None,
 LL | |         };
-   | |__________^ help: consider writing: `let Some(v) = g() else { return None };`
+   | |__________^ help: consider writing: `let Some(v) = tuple_option() else { return None };`
 
 error: this could be rewritten as `let...else`
-  --> $DIR/manual_let_else_question_mark.rs:63:9
+  --> $DIR/manual_let_else_question_mark.rs:228:9
    |
-LL |         let v = if let Some(v_some) = g() { v_some } else { return None };
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: consider writing: `let Some(v) = g() else { return None };`
+LL | /         let v = if let Some(v_some) = tuple_option() {
+LL | |             v_some
+LL | |         } else {
+LL | |             return None;
+LL | |         };
+   | |__________^
+   |
+help: consider writing
+   |
+LL ~         let Some(v) = tuple_option() else {
+LL +             return None;
+LL +         };
+   |
 
-error: this `let...else` may be rewritten with the `?` operator
-  --> $DIR/manual_let_else_question_mark.rs:71:5
+error: this `let...else` may be rewritten with `Option::ok_or` and the `?` operator
+  --> $DIR/manual_let_else_question_mark.rs:243:5
    |
-LL | /     let Some(x) = y else {
-LL | |         return None;
+LL |     let Some(v) = tuple_option() else { return Err(1) };
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace it with: `let v = tuple_option().ok_or(1)?;`
+
+error: this `let...else` may be rewritten with `Option::ok_or` and the `?` operator
+  --> $DIR/manual_let_else_question_mark.rs:246:5
+   |
+LL | /     let Some(v) = tuple_option() else {
+LL | |         return Err(1);
 LL | |     };
-   | |______^ help: replace it with: `let x = y?;`
+   | |______^ help: replace it with: `let v = tuple_option().ok_or(1)?;`
 
-error: this block may be rewritten with the `?` operator
-  --> $DIR/manual_let_else_question_mark.rs:75:13
+error: this `let...else` may be rewritten with `Option::ok_or` and the `?` operator
+  --> $DIR/manual_let_else_question_mark.rs:251:5
    |
-LL |       let v = if let Some(v_some) = g() {
+LL | /     let Some((v, w)) = tuple_option() else {
+LL | |         return Err(1);
+LL | |     };
+   | |______^ help: replace it with: `let (v, w) = tuple_option().ok_or(1)?;`
+
+error: this block may be rewritten with `Option::ok_or` and the `?` operator
+  --> $DIR/manual_let_else_question_mark.rs:256:13
+   |
+LL |       let v = if let Some(v_some) = tuple_option() {
    |  _____________^
 LL | |         v_some
 LL | |     } else {
+LL | |         return Err(1);
+LL | |     };
+   | |_____^ help: replace it with: `tuple_option().ok_or(1)?`
+
+error: this block may be rewritten with `Option::ok_or` and the `?` operator
+  --> $DIR/manual_let_else_question_mark.rs:263:13
+   |
+LL |       let v = if let Some(v_some) = tuple_option() {
+   |  _____________^
+LL | |         v_some
+LL | |     } else {
+LL | |         return Err(1);
+LL | |     };
+   | |_____^ help: replace it with: `tuple_option().ok_or(1)?`
+
+error: this `let...else` may be rewritten with `Option::ok_or` and the `?` operator
+  --> $DIR/manual_let_else_question_mark.rs:270:5
+   |
+LL | /     let Some(v) = tuple_option() else {
+LL | |         return Err(add_one!(1));
+LL | |     };
+   | |______^ help: replace it with: `let v = tuple_option().ok_or(add_one!(1))?;`
+
+error: this block may be rewritten with `Option::ok_or` and the `?` operator
+  --> $DIR/manual_let_else_question_mark.rs:275:13
+   |
+LL |       let v = if let Some(v_some) = tuple_option() {
+   |  _____________^
+LL | |         v_some
+LL | |     } else {
+LL | |         return Err(add_one!(1));
+LL | |     };
+   | |_____^ help: replace it with: `tuple_option().ok_or(add_one!(1))?`
+
+error: this block may be rewritten with `Option::ok_or` and the `?` operator
+  --> $DIR/manual_let_else_question_mark.rs:285:21
+   |
+LL |               let _ = if let Some(v_some) = tuple_option() {
+   |  _____________________^
+LL | |                 v_some
+LL | |             } else {
+LL | |                 return Err(1);
+LL | |             };
+   | |_____________^ help: replace it with: `tuple_option().ok_or(1)?`
+
+error: this `let...else` may be rewritten with `Result::ok` and the `?` operator
+  --> $DIR/manual_let_else_question_mark.rs:553:5
+   |
+LL |     let Ok(v) = tuple_result() else { return None };
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace it with: `let v = tuple_result().ok()?;`
+
+error: this `let...else` may be rewritten with `Result::ok` and the `?` operator
+  --> $DIR/manual_let_else_question_mark.rs:556:5
+   |
+LL | /     let Ok(v) = tuple_result() else {
 LL | |         return None;
 LL | |     };
-   | |_____^ help: replace it with: `g()?`
+   | |______^ help: replace it with: `let v = tuple_result().ok()?;`
 
-error: aborting due to 8 previous errors
+error: this `let...else` may be rewritten with `Result::ok` and the `?` operator
+  --> $DIR/manual_let_else_question_mark.rs:561:5
+   |
+LL |     let Ok((v, w)) = tuple_result() else { return None };
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace it with: `let (v, w) = tuple_result().ok()?;`
+
+error: this block may be rewritten with `Result::ok` and the `?` operator
+  --> $DIR/manual_let_else_question_mark.rs:564:13
+   |
+LL |       let v = if let Ok(v_ok) = tuple_result() {
+   |  _____________^
+LL | |         v_ok
+LL | |     } else {
+LL | |         return None;
+LL | |     };
+   | |_____^ help: replace it with: `tuple_result().ok()?`
+
+error: this block may be rewritten with `Result::ok` and the `?` operator
+  --> $DIR/manual_let_else_question_mark.rs:571:13
+   |
+LL |       let v = if let Ok(v_ok) = tuple_result() {
+   |  _____________^
+LL | |         v_ok
+LL | |     } else {
+LL | |         return None;
+LL | |     };
+   | |_____^ help: replace it with: `tuple_result().ok()?`
+
+error: this `let...else` may be rewritten with `Result::or` and the `?` operator
+  --> $DIR/manual_let_else_question_mark.rs:662:5
+   |
+LL |     let Ok(v) = tuple_result() else { return Err(1) };
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace it with: `let v = tuple_result().or(Err(1))?;`
+
+error: this `let...else` may be rewritten with `Result::or` and the `?` operator
+  --> $DIR/manual_let_else_question_mark.rs:665:5
+   |
+LL | /     let Ok(v) = tuple_result() else {
+LL | |         return Err(1);
+LL | |     };
+   | |______^ help: replace it with: `let v = tuple_result().or(Err(1))?;`
+
+error: this `let...else` may be rewritten with `Result::or` and the `?` operator
+  --> $DIR/manual_let_else_question_mark.rs:670:5
+   |
+LL |     let Ok((v, w)) = tuple_result() else { return Err(1) };
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace it with: `let (v, w) = tuple_result().or(Err(1))?;`
+
+error: this block may be rewritten with `Result::or` and the `?` operator
+  --> $DIR/manual_let_else_question_mark.rs:673:13
+   |
+LL |       let v = if let Ok(v_ok) = tuple_result() {
+   |  _____________^
+LL | |         v_ok
+LL | |     } else {
+LL | |         return Err(1);
+LL | |     };
+   | |_____^ help: replace it with: `tuple_result().or(Err(1))?`
+
+error: this block may be rewritten with `Result::or` and the `?` operator
+  --> $DIR/manual_let_else_question_mark.rs:680:13
+   |
+LL |       let v = if let Ok(v_ok) = tuple_result() {
+   |  _____________^
+LL | |         v_ok
+LL | |     } else {
+LL | |         return Err(1);
+LL | |     };
+   | |_____^ help: replace it with: `tuple_result().or(Err(1))?`
+
+error: this `let...else` may be rewritten with `Result::or` and the `?` operator
+  --> $DIR/manual_let_else_question_mark.rs:687:5
+   |
+LL | /     let Ok(v) = tuple_result() else {
+LL | |         return Err(add_one!(1));
+LL | |     };
+   | |______^ help: replace it with: `let v = tuple_result().or(Err(add_one!(1)))?;`
+
+error: this block may be rewritten with `Result::or` and the `?` operator
+  --> $DIR/manual_let_else_question_mark.rs:692:13
+   |
+LL |       let v = if let Ok(v_ok) = tuple_result() {
+   |  _____________^
+LL | |         v_ok
+LL | |     } else {
+LL | |         return Err(add_one!(1));
+LL | |     };
+   | |_____^ help: replace it with: `tuple_result().or(Err(add_one!(1)))?`
+
+error: this block may be rewritten with `Result::or` and the `?` operator
+  --> $DIR/manual_let_else_question_mark.rs:702:21
+   |
+LL |               let _ = if let Ok(v_ok) = tuple_result() {
+   |  _____________________^
+LL | |                 v_ok
+LL | |             } else {
+LL | |                 return Err(1);
+LL | |             };
+   | |_____________^ help: replace it with: `tuple_result().or(Err(1))?`
+
+error: aborting due to 29 previous errors
 

@@ -139,6 +139,10 @@ fn func_returning_result() -> Result<i32, i32> {
     Ok(1)
 }
 
+fn func_returning_i32() -> i32 {
+    1
+}
+
 fn result_func(x: Result<i32, i32>) -> Result<i32, i32> {
     let _ = if let Ok(x) = x { x } else { return x };
 
@@ -146,19 +150,28 @@ fn result_func(x: Result<i32, i32>) -> Result<i32, i32> {
         return x;
     }
 
-    // No warning
-    let y = if let Ok(x) = x {
+    let _ = if let Ok(x) = x {
         x
     } else {
         return Err(0);
     };
 
-    // issue #7859
-    // no warning
+    let _ = if let Ok(x) = x {
+        x
+    } else {
+        return Err(func_returning_i32());
+    };
+
     let _ = if let Ok(x) = func_returning_result() {
         x
     } else {
         return Err(0);
+    };
+
+    let _ = if let Ok(x) = func_returning_result() {
+        x
+    } else {
+        return Err(func_returning_i32());
     };
 
     // no warning
@@ -186,7 +199,7 @@ fn result_func(x: Result<i32, i32>) -> Result<i32, i32> {
         unreachable!()
     }
 
-    Ok(y)
+    Ok(1)
 }
 
 // see issue #8019
@@ -294,10 +307,10 @@ fn issue8628(a: Option<u32>) -> Option<u32> {
 fn issue6828_nested_body() -> Option<u32> {
     try {
         fn f2(a: Option<i32>) -> Option<i32> {
+            // do lint here, the outer `try` is not relevant here
+            // https://github.com/rust-lang/rust-clippy/pull/11001#issuecomment-1610636867
             if a.is_none() {
                 return None;
-                // do lint here, the outer `try` is not relevant here
-                // https://github.com/rust-lang/rust-clippy/pull/11001#issuecomment-1610636867
             }
             Some(32)
         }
