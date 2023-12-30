@@ -2910,7 +2910,7 @@ pub fn pat_and_expr_can_be_question_mark<'a, 'hir>(
     if let PatKind::TupleStruct(pat_path, [inner_pat], _) = pat.kind
         && is_res_lang_ctor(cx, cx.qpath_res(&pat_path, pat.hir_id), OptionSome)
         && !is_refutable(cx, inner_pat)
-        && let else_body = peel_blocks(else_body)
+        && let else_body = peel_blocks_with_stmt(else_body)
         && let ExprKind::Ret(Some(ret_val)) = else_body.kind
         && let ExprKind::Path(ret_path) = ret_val.kind
         && is_res_lang_ctor(cx, cx.qpath_res(&ret_path, ret_val.hir_id), OptionNone)
