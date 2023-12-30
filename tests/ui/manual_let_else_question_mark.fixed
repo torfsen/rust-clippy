@@ -65,6 +65,8 @@ fn foo() -> Option<()> {
 fn issue11993(y: Option<i32>) -> Option<i32> {
     let x = y?;
 
+    let v = g()?;
+
     // don't lint: more than one statement in the else body
     let Some(x) = y else {
         todo!();
