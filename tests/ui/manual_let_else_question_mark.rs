@@ -72,6 +72,12 @@ fn issue11993(y: Option<i32>) -> Option<i32> {
         return None;
     };
 
+    let v = if let Some(v_some) = g() {
+        v_some
+    } else {
+        return None;
+    };
+
     // don't lint: more than one statement in the else body
     let Some(x) = y else {
         todo!();

@@ -61,5 +61,16 @@ LL | |         return None;
 LL | |     };
    | |______^ help: replace it with: `let x = y?;`
 
-error: aborting due to 7 previous errors
+error: this block may be rewritten with the `?` operator
+  --> $DIR/manual_let_else_question_mark.rs:75:13
+   |
+LL |       let v = if let Some(v_some) = g() {
+   |  _____________^
+LL | |         v_some
+LL | |     } else {
+LL | |         return None;
+LL | |     };
+   | |_____^ help: replace it with: `g()?`
+
+error: aborting due to 8 previous errors
 
