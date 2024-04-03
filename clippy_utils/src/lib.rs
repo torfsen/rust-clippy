@@ -2877,48 +2877,211 @@ pub fn span_find_starting_semi(sm: &SourceMap, span: Span) -> Span {
     sm.span_take_while(span, |&ch| ch == ' ' || ch == ';')
 }
 
-/// Returns whether the given let pattern and else body can be turned into a question mark
-///
-/// For this example:
-/// ```ignore
-/// let FooBar { a, b } = if let Some(a) = ex { a } else { return None };
-/// ```
-/// We get as parameters:
-/// ```ignore
-/// pat: Some(a)
-/// else_body: return None
-/// ```
+#[derive(Copy, Clone, Debug)]
+pub enum OptionOrResult {
+    Option,
+    Result,
+}
 
-/// And for this example:
-/// ```ignore
-/// let Some(FooBar { a, b }) = ex else { return None };
-/// ```
-/// We get as parameters:
-/// ```ignore
-/// pat: Some(FooBar { a, b })
-/// else_body: return None
-/// ```
-
-/// We output `Some(a)` in the first instance, and `Some(FooBar { a, b })` in the second, because
-/// the question mark operator is applicable here. Callers have to check whether we are in a
-/// constant or not.
-pub fn pat_and_expr_can_be_question_mark<'a, 'hir>(
-    cx: &LateContext<'_>,
-    pat: &'a Pat<'hir>,
-    else_body: &Expr<'_>,
-) -> Option<&'a Pat<'hir>> {
-    if let PatKind::TupleStruct(pat_path, [inner_pat], _) = pat.kind
-        && is_res_lang_ctor(cx, cx.qpath_res(&pat_path, pat.hir_id), OptionSome)
-        && !is_refutable(cx, inner_pat)
-        && let else_body = peel_blocks_with_stmt(else_body)
-        && let ExprKind::Ret(Some(ret_val)) = else_body.kind
-        && let ExprKind::Path(ret_path) = ret_val.kind
-        && is_res_lang_ctor(cx, cx.qpath_res(&ret_path, ret_val.hir_id), OptionNone)
-    {
-        Some(inner_pat)
-    } else {
-        None
+impl OptionOrResult {
+    pub fn from_some_or_ok(cx: &LateContext<'_>, res: Res) -> Option<Self> {
+        if is_res_lang_ctor(cx, res, OptionSome) {
+            Some(Self::Option)
+        } else if is_res_lang_ctor(cx, res, ResultOk) {
+            Some(Self::Result)
+        } else {
+            None
+        }
     }
+}
+
+// Return `Some(hir_id)` if `expr` is a local variable, `None` otherwise
+pub fn extract_var(expr: &Expr<'_>) -> Option<HirId> {
+    match expr.kind {
+        ExprKind::Path(QPath::Resolved(
+            _,
+            Path {
+                res: Res::Local(hir_id),
+                ..
+            },
+        )) => Some(*hir_id),
+        _ => None,
+    }
+}
+
+#[derive(Debug)]
+pub enum QuestionMarkBlockValue<'tcx> {
+    None,
+    Err(&'tcx Expr<'tcx>),
+    Var(HirId),
+}
+
+/// Types of blocks that can potentially be simplified using `?`
+///
+/// These are simple blocks that only "return" `None`, `Err(..)`, or a variable, either via `return`
+/// or as an expression.
+///
+/// The checks whether a simplification is actually possible are split over several locations:
+///
+/// * `from_block` and `from_expr` perform basic checks that are required in all use cases.
+///
+/// * Code that uses `QuestionMarkBlock` often performs additional checks that are specifc to that
+///   particular use case.
+///
+/// * Finally, `can_be_shortened` also has some last checks.
+pub struct QuestionMarkBlock<'tcx> {
+    pub value: QuestionMarkBlockValue<'tcx>,
+    pub has_return: bool,
+}
+
+impl<'tcx> QuestionMarkBlock<'tcx> {
+    fn new(
+        cx: &LateContext<'tcx>,
+        value: QuestionMarkBlockValue<'tcx>,
+        has_return: bool,
+        span: Span,
+    ) -> Option<Self> {
+        if span_contains_comment(cx.tcx.sess.source_map(), span) {
+            return None;
+        }
+        Some(Self { value, has_return })
+    }
+
+    pub fn from_block(cx: &LateContext<'tcx>, block: &'tcx Block<'tcx>) -> Option<Self> {
+        if span_contains_comment(cx.tcx.sess.source_map(), block.span) {
+            return None;
+        }
+        let expr = if let Block {
+            stmts: &[],
+            expr: Some(expr),
+            ..
+        } = block
+        {
+            expr
+        } else if let [stmt] = block.stmts
+            && let StmtKind::Semi(expr) = stmt.kind
+            && let ExprKind::Ret(..) = expr.kind
+        {
+            expr
+        } else {
+            return None;
+        };
+        let (value, has_return) = Self::parse_expr(cx, expr)?;
+        Self::new(cx, value, has_return, block.span)
+    }
+
+    pub fn from_expr(cx: &LateContext<'tcx>, expr: &'tcx Expr<'tcx>) -> Option<Self> {
+        let (value, has_return) = Self::parse_expr(cx, expr)?;
+        Self::new(cx, value, has_return, expr.span)
+    }
+
+    fn parse_expr(cx: &LateContext<'tcx>, expr: &'tcx Expr<'tcx>) -> Option<(QuestionMarkBlockValue<'tcx>, bool)> {
+        let peeled = peel_blocks_with_stmt(expr);
+        return match peeled.kind {
+            // return ..
+            ExprKind::Ret(Some(ret_expr)) => match Self::parse_expr(cx, ret_expr) {
+                Some((value, ..)) => Some((value, true)),
+                _ => None,
+            },
+            // None
+            ExprKind::Path(ret_path) if is_res_lang_ctor(cx, cx.qpath_res(&ret_path, peeled.hir_id), OptionNone) => {
+                Some((QuestionMarkBlockValue::None, false))
+            },
+            // Variable
+            ExprKind::Path(_) if let Some(hir_id) = extract_var(peeled) => {
+                Some((QuestionMarkBlockValue::Var(hir_id), false))
+            },
+            // Err(..)
+            ExprKind::Call(call_expr, [call_arg])
+                if let ExprKind::Path(call_path) = call_expr.kind
+                    && is_res_lang_ctor(cx, cx.qpath_res(&call_path, call_expr.hir_id), ResultErr) =>
+            {
+                Some((QuestionMarkBlockValue::Err(call_arg), false))
+            },
+            _ => None,
+        };
+    }
+
+    /// Check if this block can be shortened using `?`.
+    ///
+    /// `input_type` is the type of the input variable. For example, in
+    ///
+    /// ```ignore
+    /// let Some(x) = g() else { return None };
+    /// ```
+    ///
+    /// `input_type` would be `OptionOrResult::Option`, and in
+    ///
+    /// ```ignore
+    /// let x = if let Ok(y) = z { y } else { return z };
+    /// ```
+    ///
+    /// `input_type` would be `OptionOrResult::Result`.
+    pub fn can_be_shortened(&self, input_type: OptionOrResult) -> bool {
+        match self.value {
+            QuestionMarkBlockValue::None => match input_type {
+                OptionOrResult::Option => true,
+                OptionOrResult::Result => false,
+            },
+            QuestionMarkBlockValue::Err(_) => false,
+            QuestionMarkBlockValue::Var(_) => true,
+        }
+    }
+}
+
+/// Check whether an `if let ... else { return ... }` expr can be shortened using `?`
+pub fn can_if_let_and_early_return_be_question_mark<'tcx>(cx: &LateContext<'tcx>, expr: &Expr<'tcx>) -> bool {
+    if let Some(higher::IfLet {
+        let_pat,
+        let_expr,
+        if_then,
+        if_else,
+        ..
+    }) = higher::IfLet::hir(cx, expr)
+        && !is_else_clause(cx.tcx, expr)
+        && let PatKind::TupleStruct(ref path1, [field], ddpos) = let_pat.kind
+        && !is_refutable(cx, field)
+        && ddpos.as_opt_usize().is_none()
+        && let PatKind::Binding(BindingAnnotation(..), bind_id, _, None) = field.kind
+    {
+        let res = cx.qpath_res(path1, let_pat.hir_id);
+
+        if if_else.is_none()
+            // No `else` block, check if the pattern is `Err(..)`
+            && is_res_lang_ctor(cx, res, ResultErr)
+            && let Some(QuestionMarkBlock {
+                value: QuestionMarkBlockValue::Err(err_arg),
+                has_return: true,
+                ..
+            }) = QuestionMarkBlock::from_expr(cx, if_then)
+            // Both `Err(..)` exprs must use the same variable
+            && extract_var(err_arg) == Some(bind_id)
+        {
+            return true;
+        }
+
+        if if_else.is_some()
+            // There is an `else` block, check if the argument to `Some`/`Ok` matches the expression in the "then" block
+            && path_to_local_id(peel_blocks(if_then), bind_id)
+            && let Some(else_block) = QuestionMarkBlock::from_expr(cx, if_else.unwrap())
+            && else_block.has_return
+            // If the `else`` block returns a variable it must be the same as the one the pattern is compared to
+            && {
+                match else_block.value {
+                    QuestionMarkBlockValue::Var(return_var) => extract_var(let_expr) == Some(return_var),
+                    _ => true,
+                }
+            }
+            && let Some(input_type) = OptionOrResult::from_some_or_ok(cx, res)
+            && else_block.can_be_shortened(input_type)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    false
 }
 
 macro_rules! op_utils {

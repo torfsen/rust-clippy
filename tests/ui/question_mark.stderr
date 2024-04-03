@@ -132,12 +132,10 @@ LL | |     }
    | |_____^ help: replace it with: `func_returning_result()?;`
 
 error: this block may be rewritten with the `?` operator
-  --> tests/ui/question_mark.rs:297:13
+  --> tests/ui/question_mark.rs:299:13
    |
 LL | /             if a.is_none() {
 LL | |                 return None;
-LL | |                 // do lint here, the outer `try` is not relevant here
-LL | |                 // https://github.com/rust-lang/rust-clippy/pull/11001#issuecomment-1610636867
 LL | |             }
    | |_____________^ help: replace it with: `a?;`
 

@@ -5,7 +5,7 @@ use clippy_utils::diagnostics::span_lint_and_then;
 use clippy_utils::higher::IfLetOrMatch;
 use clippy_utils::source::snippet_with_context;
 use clippy_utils::ty::is_type_diagnostic_item;
-use clippy_utils::{is_lint_allowed, is_never_expr, pat_and_expr_can_be_question_mark, peel_blocks};
+use clippy_utils::{can_if_let_and_early_return_be_question_mark, is_lint_allowed, is_never_expr, peel_blocks};
 use rustc_data_structures::fx::{FxHashMap, FxHashSet};
 use rustc_errors::Applicability;
 use rustc_hir::{Expr, ExprKind, MatchSource, Pat, PatKind, QPath, Stmt, StmtKind};
@@ -65,8 +65,11 @@ impl<'tcx> QuestionMark {
                     if let Some(ident_map) = expr_simple_identity_map(local.pat, let_pat, if_then)
                         && let Some(if_else) = if_else
                         && is_never_expr(cx, if_else).is_some()
-                        && let qm_allowed = is_lint_allowed(cx, QUESTION_MARK, stmt.hir_id)
-                        && (qm_allowed || pat_and_expr_can_be_question_mark(cx, let_pat, if_else).is_none())
+                        // Avoid overlap with `QUESTION_MARK`
+                        && (
+                            is_lint_allowed(cx, QUESTION_MARK, stmt.hir_id)
+                            || !can_if_let_and_early_return_be_question_mark(cx, init)
+                        )
                     {
                         emit_manual_let_else(cx, stmt.span, if_let_expr, &ident_map, let_pat, if_else);
                     }
