@@ -8,32 +8,13 @@
 )]
 #![warn(clippy::manual_let_else, clippy::question_mark)]
 
-enum Variant {
-    A(usize, usize),
-    B(usize),
-    C,
-}
-
 fn g() -> Option<(u8, u8)> {
     None
-}
-
-fn e() -> Variant {
-    Variant::A(0, 0)
 }
 
 fn main() {}
 
 fn foo() -> Option<()> {
-    // Fire here, normal case
-    let Some(v) = g() else { return None };
-
-    // Don't fire here, the pattern is refutable
-    let Variant::A(v, w) = e() else { return None };
-
-    // Fire here, the pattern is irrefutable
-    let Some((v, w)) = g() else { return None };
-
     // Don't fire manual_let_else in this instance: question mark can be used instead.
     let v = if let Some(v_some) = g() { v_some } else { return None };
 
@@ -64,33 +45,4 @@ fn foo() -> Option<()> {
     }
 
     Some(())
-}
-
-// lint not just `return None`, but also `return None;` (note the semicolon)
-fn issue11993(y: Option<i32>) -> Option<i32> {
-    let Some(x) = y else {
-        return None;
-    };
-
-    let v = if let Some(v_some) = g() {
-        v_some
-    } else {
-        return None;
-    };
-
-    // don't lint: more than one statement in the else body
-    let Some(x) = y else {
-        todo!();
-        return None;
-    };
-
-    let Some(x) = y else {
-        // Roses are red,
-        // violets are blue,
-        // please keep this comment,
-        // it's art, you know?
-        return None;
-    };
-
-    None
 }

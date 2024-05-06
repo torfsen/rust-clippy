@@ -1,114 +1,190 @@
 error: this block may be rewritten with the `?` operator
-  --> tests/ui/question_mark.rs:7:5
+  --> tests/ui/question_mark.rs:56:13
    |
-LL | /     if a.is_none() {
-LL | |         return None;
-LL | |     }
-   | |_____^ help: replace it with: `a?;`
+LL |     let _ = if let Some(x) = x { x } else { return None };
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace it with: `x?`
    |
    = note: `-D clippy::question-mark` implied by `-D warnings`
    = help: to override `-D warnings` add `#[allow(clippy::question_mark)]`
 
 error: this block may be rewritten with the `?` operator
-  --> tests/ui/question_mark.rs:52:9
+  --> tests/ui/question_mark.rs:59:13
    |
-LL | /         if (self.opt).is_none() {
-LL | |             return None;
-LL | |         }
-   | |_________^ help: replace it with: `(self.opt)?;`
+LL |       let _ = if let Some(x) = x {
+   |  _____________^
+LL | |         x
+LL | |     } else {
+LL | |         return None;
+LL | |     };
+   | |_____^ help: replace it with: `x?`
 
 error: this block may be rewritten with the `?` operator
-  --> tests/ui/question_mark.rs:56:9
+  --> tests/ui/question_mark.rs:78:13
    |
-LL | /         if self.opt.is_none() {
-LL | |             return None
-LL | |         }
-   | |_________^ help: replace it with: `self.opt?;`
+LL |       let _ = if let Some(x) = make_option() {
+   |  _____________^
+LL | |         x
+LL | |     } else {
+LL | |         return None;
+LL | |     };
+   | |_____^ help: replace it with: `make_option()?`
 
 error: this block may be rewritten with the `?` operator
-  --> tests/ui/question_mark.rs:60:17
+  --> tests/ui/question_mark.rs:91:5
    |
-LL |           let _ = if self.opt.is_none() {
-   |  _________________^
-LL | |             return None;
-LL | |         } else {
-LL | |             self.opt
-LL | |         };
-   | |_________^ help: replace it with: `Some(self.opt?)`
-
-error: this block may be rewritten with the `?` operator
-  --> tests/ui/question_mark.rs:66:17
-   |
-LL |           let _ = if let Some(x) = self.opt {
-   |  _________________^
-LL | |             x
-LL | |         } else {
-LL | |             return None;
-LL | |         };
-   | |_________^ help: replace it with: `self.opt?`
-
-error: this block may be rewritten with the `?` operator
-  --> tests/ui/question_mark.rs:83:9
-   |
-LL | /         if self.opt.is_none() {
-LL | |             return None;
-LL | |         }
-   | |_________^ help: replace it with: `self.opt.as_ref()?;`
-
-error: this block may be rewritten with the `?` operator
-  --> tests/ui/question_mark.rs:91:9
-   |
-LL | /         if self.opt.is_none() {
-LL | |             return None;
-LL | |         }
-   | |_________^ help: replace it with: `self.opt.as_ref()?;`
-
-error: this block may be rewritten with the `?` operator
-  --> tests/ui/question_mark.rs:99:9
-   |
-LL | /         if self.opt.is_none() {
-LL | |             return None;
-LL | |         }
-   | |_________^ help: replace it with: `self.opt.as_ref()?;`
-
-error: this block may be rewritten with the `?` operator
-  --> tests/ui/question_mark.rs:106:26
-   |
-LL |           let v: &Vec<_> = if let Some(ref v) = self.opt {
-   |  __________________________^
-LL | |             v
-LL | |         } else {
-LL | |             return None;
-LL | |         };
-   | |_________^ help: replace it with: `self.opt.as_ref()?`
-
-error: this block may be rewritten with the `?` operator
-  --> tests/ui/question_mark.rs:116:17
-   |
-LL |           let v = if let Some(v) = self.opt {
-   |  _________________^
-LL | |             v
-LL | |         } else {
-LL | |             return None;
-LL | |         };
-   | |_________^ help: replace it with: `self.opt?`
-
-error: this block may be rewritten with the `?` operator
-  --> tests/ui/question_mark.rs:131:5
-   |
-LL | /     if f().is_none() {
+LL | /     if x.is_none() {
 LL | |         return None;
 LL | |     }
-   | |_____^ help: replace it with: `f()?;`
+   | |_____^ help: replace it with: `x?;`
 
 error: this block may be rewritten with the `?` operator
-  --> tests/ui/question_mark.rs:143:13
+  --> tests/ui/question_mark.rs:96:5
+   |
+LL | /     if make_option().is_none() {
+LL | |         return None;
+LL | |     }
+   | |_____^ help: replace it with: `make_option()?;`
+
+error: this block may be rewritten with the `?` operator
+  --> tests/ui/question_mark.rs:101:13
+   |
+LL |       let _ = if x.is_none() {
+   |  _____________^
+LL | |         return None;
+LL | |     } else {
+LL | |         x
+LL | |     };
+   | |_____^ help: replace it with: `Some(x?)`
+
+error: this block may be rewritten with the `?` operator
+  --> tests/ui/question_mark.rs:120:21
+   |
+LL |             let _ = if let Some(x) = $x { x } else { return None };
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace it with: `$x?`
+...
+LL |     lint_inside_macro!(x);
+   |     --------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `lint_inside_macro` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: this block may be rewritten with the `?` operator
+  --> tests/ui/question_mark.rs:128:13
+   |
+LL |       let _ = if let Some(x) = x {
+   |  _____________^
+LL | |         x
+LL | |     } else {
+LL | |         // Please keep this comment
+LL | |         return None;
+LL | |     };
+   | |_____^ help: replace it with: `x?`
+
+error: this block may be rewritten with the `?` operator
+  --> tests/ui/question_mark.rs:137:5
+   |
+LL | /     if x.is_none() {
+LL | |         // Please keep this comment
+LL | |         return None;
+LL | |     }
+   | |_____^ help: replace it with: `x?;`
+
+error: this block may be rewritten with the `?` operator
+  --> tests/ui/question_mark.rs:198:21
+   |
+LL | /                     if x.is_none() {
+LL | |                         return None;
+LL | |                     }
+   | |_____________________^ help: replace it with: `x?;`
+
+error: this `let...else` may be rewritten with the `?` operator
+  --> tests/ui/question_mark.rs:233:9
+   |
+LL | /         let Some(_) = owner_owner.owner.owned.clone() else {
+LL | |             return None;
+LL | |         };
+   | |__________^ help: replace it with: `let _ = owner_owner.owner.owned.clone()?;`
+
+error: this block may be rewritten with the `?` operator
+  --> tests/ui/question_mark.rs:243:9
+   |
+LL | /         if x.0.is_none() {
+LL | |             return None;
+LL | |         }
+   | |_________^ help: replace it with: `x.0.as_ref()?;`
+
+error: this block may be rewritten with the `?` operator
+  --> tests/ui/question_mark.rs:252:9
+   |
+LL | /         if opt.is_none() {
+LL | |             return None;
+LL | |         }
+   | |_________^ help: replace it with: `opt.as_ref()?;`
+
+error: this block may be rewritten with the `?` operator
+  --> tests/ui/question_mark.rs:261:26
+   |
+LL |           let s: &String = if let Some(ref s) = opt {
+   |  __________________________^
+LL | |             s
+LL | |         } else {
+LL | |             return None;
+LL | |         };
+   | |_________^ help: replace it with: `opt.as_ref()?`
+
+error: this block may be rewritten with the `?` operator
+  --> tests/ui/question_mark.rs:289:13
+   |
+LL |       let _ = if let some!(x) = x {
+   |  _____________^
+LL | |         x
+LL | |     } else {
+LL | |         return None;
+LL | |     };
+   | |_____^ help: replace it with: `x?`
+
+error: this block may be rewritten with the `?` operator
+  --> tests/ui/question_mark.rs:316:13
    |
 LL |     let _ = if let Ok(x) = x { x } else { return x };
    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace it with: `x?`
 
 error: this block may be rewritten with the `?` operator
-  --> tests/ui/question_mark.rs:145:5
+  --> tests/ui/question_mark.rs:319:13
+   |
+LL |       let _ = if let Ok(x) = x {
+   |  _____________^
+LL | |         x
+LL | |     } else {
+LL | |         return x;
+LL | |     };
+   | |_____^ help: replace it with: `x?`
+
+error: this block may be rewritten with the `?` operator
+  --> tests/ui/question_mark.rs:330:5
+   |
+LL | /     if let Err(e) = x {
+LL | |         return Err(e);
+LL | |     }
+   | |_____^ help: replace it with: `x?;`
+
+error: this block may be rewritten with the `?` operator
+  --> tests/ui/question_mark.rs:335:5
+   |
+LL | /     if let Err(y) = x {
+LL | |         return x;
+LL | |     }
+   | |_____^ help: replace it with: `x?;`
+
+error: this block may be rewritten with the `?` operator
+  --> tests/ui/question_mark.rs:340:5
+   |
+LL | /     if let Err(x) = make_result() {
+LL | |         return Err(x);
+LL | |     };
+   | |_____^ help: replace it with: `make_result()?;`
+
+error: this block may be rewritten with the `?` operator
+  --> tests/ui/question_mark.rs:345:5
    |
 LL | /     if x.is_err() {
 LL | |         return x;
@@ -116,38 +192,114 @@ LL | |     }
    | |_____^ help: replace it with: `x?;`
 
 error: this block may be rewritten with the `?` operator
-  --> tests/ui/question_mark.rs:213:5
+  --> tests/ui/question_mark.rs:350:13
    |
-LL | /     if let Err(err) = func_returning_result() {
-LL | |         return Err(err);
-LL | |     }
-   | |_____^ help: replace it with: `func_returning_result()?;`
-
-error: this block may be rewritten with the `?` operator
-  --> tests/ui/question_mark.rs:220:5
-   |
-LL | /     if let Err(err) = func_returning_result() {
-LL | |         return Err(err);
-LL | |     }
-   | |_____^ help: replace it with: `func_returning_result()?;`
-
-error: this block may be rewritten with the `?` operator
-  --> tests/ui/question_mark.rs:297:13
-   |
-LL | /             if a.is_none() {
-LL | |                 return None;
-LL | |                 // do lint here, the outer `try` is not relevant here
-LL | |                 // https://github.com/rust-lang/rust-clippy/pull/11001#issuecomment-1610636867
-LL | |             }
-   | |_____________^ help: replace it with: `a?;`
-
-error: this `let...else` may be rewritten with the `?` operator
-  --> tests/ui/question_mark.rs:357:5
-   |
-LL | /     let Some(v) = bar.foo.owned.clone() else {
-LL | |         return None;
+LL |       let _ = if x.is_err() {
+   |  _____________^
+LL | |         return x;
+LL | |     } else {
+LL | |         x
 LL | |     };
-   | |______^ help: replace it with: `let v = bar.foo.owned.clone()?;`
+   | |_____^ help: replace it with: `Some(x?)`
 
-error: aborting due to 17 previous errors
+error: this block may be rewritten with the `?` operator
+  --> tests/ui/question_mark.rs:379:21
+   |
+LL |             let _ = if let Ok(x) = $x { x } else { return $x };
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace it with: `$x?`
+...
+LL |     lint_inside_macro!(x);
+   |     --------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `lint_inside_macro` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: this block may be rewritten with the `?` operator
+  --> tests/ui/question_mark.rs:404:13
+   |
+LL |       let _ = if let Ok(x) = x {
+   |  _____________^
+LL | |         x
+LL | |     } else {
+LL | |         // Please keep this comment
+LL | |         return x;
+LL | |     };
+   | |_____^ help: replace it with: `x?`
+
+error: this block may be rewritten with the `?` operator
+  --> tests/ui/question_mark.rs:413:5
+   |
+LL | /     if let Err(e) = x {
+LL | |         // Please keep this comment
+LL | |         return Err(e);
+LL | |     }
+   | |_____^ help: replace it with: `x?;`
+
+error: this block may be rewritten with the `?` operator
+  --> tests/ui/question_mark.rs:420:5
+   |
+LL | /     if let Err(y) = x {
+LL | |         // Please keep this comment
+LL | |         return x;
+LL | |     }
+   | |_____^ help: replace it with: `x?;`
+
+error: this block may be rewritten with the `?` operator
+  --> tests/ui/question_mark.rs:459:13
+   |
+LL |       let _ = if let Ok(x) = x {
+   |  _____________^
+LL | |         do_something();
+LL | |         x
+LL | |     } else {
+LL | |         return x;
+LL | |     };
+   | |_____^ help: replace it with: `x?`
+
+error: this block may be rewritten with the `?` operator
+  --> tests/ui/question_mark.rs:511:21
+   |
+LL | /                     if x.is_err() {
+LL | |                         return x;
+LL | |                     }
+   | |_____________________^ help: replace it with: `x?;`
+
+error: this block may be rewritten with the `?` operator
+  --> tests/ui/question_mark.rs:530:9
+   |
+LL | /         if res.is_err() {
+LL | |             return res;
+LL | |         }
+   | |_________^ help: replace it with: `res.as_ref()?;`
+
+error: this block may be rewritten with the `?` operator
+  --> tests/ui/question_mark.rs:539:26
+   |
+LL |           let s: &String = if let Ok(ref s) = res {
+   |  __________________________^
+LL | |             s
+LL | |         } else {
+LL | |             return res;
+LL | |         };
+   | |_________^ help: replace it with: `res.as_ref()?`
+
+error: this block may be rewritten with the `?` operator
+  --> tests/ui/question_mark.rs:572:13
+   |
+LL |       let _ = if let ok!(x) = x {
+   |  _____________^
+LL | |         x
+LL | |     } else {
+LL | |         return x;
+LL | |     };
+   | |_____^ help: replace it with: `x?`
+
+error: this block may be rewritten with the `?` operator
+  --> tests/ui/question_mark.rs:584:5
+   |
+LL | /     if let err!(x) = x {
+LL | |         return Err(x);
+LL | |     };
+   | |_____^ help: replace it with: `x?;`
+
+error: aborting due to 32 previous errors
 
