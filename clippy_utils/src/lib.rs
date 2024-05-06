@@ -92,6 +92,7 @@ use rustc_ast::ast::{self, LitKind, RangeLimits};
 use rustc_data_structures::fx::FxHashMap;
 use rustc_data_structures::packed::Pu128;
 use rustc_data_structures::unhash::UnhashMap;
+use rustc_errors::Applicability;
 use rustc_hir::def::{DefKind, Res};
 use rustc_hir::def_id::{CrateNum, DefId, LocalDefId, LocalModDefId, LOCAL_CRATE};
 use rustc_hir::definitions::{DefPath, DefPathData};
@@ -120,6 +121,7 @@ use rustc_span::source_map::SourceMap;
 use rustc_span::symbol::{kw, Ident, Symbol};
 use rustc_span::{sym, Span};
 use rustc_target::abi::Integer;
+use source::snippet_with_context;
 use visitors::Visitable;
 
 use crate::consts::{constant, mir_to_const, Constant};
@@ -2898,47 +2900,202 @@ pub fn span_find_starting_semi(sm: &SourceMap, span: Span) -> Span {
     sm.span_take_while(span, |&ch| ch == ' ' || ch == ';')
 }
 
-/// Returns whether the given let pattern and else body can be turned into a question mark
+#[derive(Copy, Clone, Debug)]
+pub enum OptionOrResult {
+    Option,
+    Result,
+}
+
+impl OptionOrResult {
+    pub fn from_some_or_ok(cx: &LateContext<'_>, res: Res) -> Option<Self> {
+        if is_res_lang_ctor(cx, res, OptionSome) {
+            Some(Self::Option)
+        } else if is_res_lang_ctor(cx, res, ResultOk) {
+            Some(Self::Result)
+        } else {
+            None
+        }
+    }
+}
+
+// Return `Some(hir_id)` if `expr` is a local variable, `None` otherwise
+pub fn extract_var(expr: &Expr<'_>) -> Option<HirId> {
+    match expr.kind {
+        ExprKind::Path(QPath::Resolved(
+            _,
+            Path {
+                res: Res::Local(hir_id),
+                ..
+            },
+        )) => Some(*hir_id),
+        _ => None,
+    }
+}
+
+#[derive(Debug)]
+pub enum QuestionMarkBlockValue<'tcx> {
+    None,
+    Err(&'tcx Expr<'tcx>),
+    Var(HirId),
+}
+
+pub enum QuestionMarkBlockSuggestion {
+    QuestionMarkOnly,
+    MethodCall(String, String),
+}
+
+/// Types of blocks that can potentially be simplified using `?`
 ///
-/// For this example:
-/// ```ignore
-/// let FooBar { a, b } = if let Some(a) = ex { a } else { return None };
-/// ```
-/// We get as parameters:
-/// ```ignore
-/// pat: Some(a)
-/// else_body: return None
-/// ```
+/// These are simple blocks that only "return" `None`, `Err(..)`, or a variable, either via `return`
+/// or as an expression.
+///
+/// The checks whether a simplification is actually possible are split over several locations:
+///
+/// * `from_block` and `from_expr` perform basic checks that are required in all use cases.
+///
+/// * Code that uses `QuestionMarkBlock` often performs additional checks that are specifc to that
+///   particular use case.
+///
+/// * Finally, `prepare_suggestion` also has some last checks.
+pub struct QuestionMarkBlock<'a, 'tcx> {
+    pub value: QuestionMarkBlockValue<'tcx>,
+    pub has_return: bool,
 
-/// And for this example:
-/// ```ignore
-/// let Some(FooBar { a, b }) = ex else { return None };
-/// ```
-/// We get as parameters:
-/// ```ignore
-/// pat: Some(FooBar { a, b })
-/// else_body: return None
-/// ```
+    cx: &'a LateContext<'tcx>,
+    span: Span,
+}
 
-/// We output `Some(a)` in the first instance, and `Some(FooBar { a, b })` in the second, because
-/// the question mark operator is applicable here. Callers have to check whether we are in a
-/// constant or not.
-pub fn pat_and_expr_can_be_question_mark<'a, 'hir>(
-    cx: &LateContext<'_>,
-    pat: &'a Pat<'hir>,
-    else_body: &Expr<'_>,
-) -> Option<&'a Pat<'hir>> {
-    if let PatKind::TupleStruct(pat_path, [inner_pat], _) = pat.kind
-        && is_res_lang_ctor(cx, cx.qpath_res(&pat_path, pat.hir_id), OptionSome)
-        && !is_refutable(cx, inner_pat)
-        && let else_body = peel_blocks_with_stmt(else_body)
-        && let ExprKind::Ret(Some(ret_val)) = else_body.kind
-        && let ExprKind::Path(ret_path) = ret_val.kind
-        && is_res_lang_ctor(cx, cx.qpath_res(&ret_path, ret_val.hir_id), OptionNone)
-    {
-        Some(inner_pat)
-    } else {
-        None
+impl<'a, 'tcx> QuestionMarkBlock<'a, 'tcx> {
+    fn new(
+        cx: &'a LateContext<'tcx>,
+        value: QuestionMarkBlockValue<'tcx>,
+        has_return: bool,
+        span: Span,
+    ) -> Option<Self> {
+        if span_contains_comment(cx.tcx.sess.source_map(), span) {
+            return None;
+        }
+        Some(Self {
+            value,
+            has_return,
+            cx,
+            span,
+        })
+    }
+
+    pub fn from_block(cx: &'a LateContext<'tcx>, block: &'tcx Block<'tcx>) -> Option<Self> {
+        if span_contains_comment(cx.tcx.sess.source_map(), block.span) {
+            return None;
+        }
+        let expr = if let Block {
+            stmts: &[],
+            expr: Some(expr),
+            ..
+        } = block
+        {
+            expr
+        } else if let [stmt] = block.stmts
+            && let StmtKind::Semi(expr) = stmt.kind
+            && let ExprKind::Ret(..) = expr.kind
+        {
+            expr
+        } else {
+            return None;
+        };
+        let (value, has_return) = Self::parse_expr(cx, expr)?;
+        Self::new(cx, value, has_return, block.span)
+    }
+
+    pub fn from_expr(cx: &'a LateContext<'tcx>, expr: &'tcx Expr<'tcx>) -> Option<Self> {
+        let (value, has_return) = Self::parse_expr(cx, expr)?;
+        Self::new(cx, value, has_return, expr.span)
+    }
+
+    fn parse_expr(cx: &'a LateContext<'tcx>, expr: &'tcx Expr<'tcx>) -> Option<(QuestionMarkBlockValue<'tcx>, bool)> {
+        let peeled = peel_blocks_with_stmt(expr);
+        return match peeled.kind {
+            // return ..
+            ExprKind::Ret(Some(ret_expr)) => match Self::parse_expr(cx, ret_expr) {
+                Some((value, ..)) => Some((value, true)),
+                _ => None,
+            },
+            // None
+            ExprKind::Path(ret_path) if is_res_lang_ctor(cx, cx.qpath_res(&ret_path, peeled.hir_id), OptionNone) => {
+                Some((QuestionMarkBlockValue::None, false))
+            },
+            // Variable
+            ExprKind::Path(_) if let Some(hir_id) = extract_var(peeled) => {
+                Some((QuestionMarkBlockValue::Var(hir_id), false))
+            },
+            // Err(..)
+            ExprKind::Call(call_expr, [call_arg])
+                if let ExprKind::Path(call_path) = call_expr.kind
+                    && is_res_lang_ctor(cx, cx.qpath_res(&call_path, call_expr.hir_id), ResultErr) =>
+            {
+                Some((QuestionMarkBlockValue::Err(call_arg), false))
+            },
+            _ => None,
+        };
+    }
+
+    /// Prepare suggestion for replacing code with a question mark construct.
+    ///
+    /// `input_type` is the type of the input variable.
+    ///
+    /// For example, in
+    ///
+    /// ```ignore
+    /// let Some(x) = g() else { return None };
+    /// ```
+    ///
+    /// `input_type` would be `OptionOrResult::Option`, and in
+    ///
+    /// ```ignore
+    /// let x = if let Ok(y) = z { y } else { return z };
+    /// ```
+    ///
+    /// `input_type` would be `OptionOrResult::Result`.
+    ///
+    /// Returns `Some(QuestionMarkBlockSuggestion::MethodCall(method_name, call))`, where
+    /// `method_name` is the name of the suggested method to call on the input variable, and
+    /// `call` is the complete call of the method (including the leading dot but without the
+    /// receiver and the question mark). If no method call is required then the return value
+    /// is `Some(QuestionMarkBlockSuggestion::QuestionMarkOnly)`.
+    ///
+    /// Returns `None` if no suggestion could be generated. This happens for example if `Err` is
+    /// called with a non-const argument.
+    pub fn prepare_suggestion(
+        &self,
+        input_type: OptionOrResult,
+        app: &mut Applicability,
+    ) -> Option<QuestionMarkBlockSuggestion> {
+        let (method, call) = match self.value {
+            QuestionMarkBlockValue::None => match input_type {
+                OptionOrResult::Option => return Some(QuestionMarkBlockSuggestion::QuestionMarkOnly),
+                OptionOrResult::Result => ("Result::ok", ".ok()".to_owned()),
+            },
+            QuestionMarkBlockValue::Err(err_arg) => {
+                // If the argument to `Err` is not constant then we could in theory use `Option::ok_or_else`
+                // or `Result::map_err`. However, applying those correctly in all cases is not trivial, so
+                // currently we do not do suggest anything in this case.
+                constant(self.cx, self.cx.typeck_results(), err_arg)?;
+                let arg_str = snippet_with_context(self.cx, err_arg.span, self.span.ctxt(), "..", app).0;
+                match input_type {
+                    OptionOrResult::Option => ("Option::ok_or", format!(".ok_or({arg_str})")),
+                    OptionOrResult::Result => ("Result::or", format!(".or(Err({arg_str}))")),
+                }
+            },
+            QuestionMarkBlockValue::Var(_) => return Some(QuestionMarkBlockSuggestion::QuestionMarkOnly),
+        };
+        Some(QuestionMarkBlockSuggestion::MethodCall(method.to_owned(), call))
+    }
+
+    /// Returns `true` if the block can be shortened using `?`
+    pub fn can_be_shortened(&self) -> bool {
+        // For deciding whether the block can be shortened, it doesn't matter what the input type and the
+        // applicability are
+        let mut app = Applicability::MachineApplicable;
+        self.prepare_suggestion(OptionOrResult::Option, &mut app).is_some()
     }
 }
 

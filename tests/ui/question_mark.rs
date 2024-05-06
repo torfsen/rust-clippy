@@ -63,11 +63,9 @@ fn option_to_none() -> Option<u8> {
     };
 
     // `if let` returning the variable without semicolon
-    // TODO: This currently does not trigger the lint
     let _ = if let Some(x) = x { x } else { return x };
 
     // `if let` returning the variable with semicolon (#11993)
-    // TODO: This currently does not trigger the lint
     let _ = if let Some(x) = x {
         x
     } else {
@@ -82,7 +80,6 @@ fn option_to_none() -> Option<u8> {
     };
 
     // `is_none` against a variable returning the variable
-    // TODO: This currently does not trigger the lint
     if x.is_none() {
         return x;
     }
@@ -124,7 +121,6 @@ fn option_to_none() -> Option<u8> {
     lint_inside_macro!(x);
 
     // `if let` against `Some` + comment before `return`
-    // TODO: This currently triggers the lint
     let _ = if let Some(x) = x {
         x
     } else {
@@ -133,7 +129,6 @@ fn option_to_none() -> Option<u8> {
     };
 
     // `is_none` + comment before `return`
-    // TODO: This currently triggers the lint
     if x.is_none() {
         // Please keep this comment
         return None;
@@ -400,7 +395,6 @@ fn result_to_unchanged_err() -> Result<u8, u8> {
     }
 
     // `if let` against `Ok` + comment before `return`
-    // TODO: This currently triggers the lint
     let _ = if let Ok(x) = x {
         x
     } else {
@@ -409,14 +403,12 @@ fn result_to_unchanged_err() -> Result<u8, u8> {
     };
 
     // `if let` against `Err` using destructured variable + comment before `return`
-    // TODO: This currently triggers the lint
     if let Err(e) = x {
         // Please keep this comment
         return Err(e);
     }
 
     // `if let` against `Err` using original variable + comment before `return`
-    // TODO: This currently triggers the lint
     if let Err(y) = x {
         // Please keep this comment
         return x;
@@ -455,7 +447,6 @@ fn result_to_unchanged_err() -> Result<u8, u8> {
     }
 
     // `if let` against `Ok` + other code in "then"
-    // TODO: This currently triggers the lint
     let _ = if let Ok(x) = x {
         do_something();
         x

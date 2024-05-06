@@ -59,25 +59,16 @@ fn option_to_none() -> Option<u8> {
     let _ = x?;
 
     // `if let` returning the variable without semicolon
-    // TODO: This currently does not trigger the lint
-    let _ = if let Some(x) = x { x } else { return x };
+    let _ = x?;
 
     // `if let` returning the variable with semicolon (#11993)
-    // TODO: This currently does not trigger the lint
-    let _ = if let Some(x) = x {
-        x
-    } else {
-        return x;
-    };
+    let _ = x?;
 
     // `if let` against a function result
     let _ = make_option()?;
 
     // `is_none` against a variable returning the variable
-    // TODO: This currently does not trigger the lint
-    if x.is_none() {
-        return x;
-    }
+    x?;
 
     // `is_none` against a variable returning `None`
     x?;
@@ -108,12 +99,18 @@ fn option_to_none() -> Option<u8> {
     lint_inside_macro!(x);
 
     // `if let` against `Some` + comment before `return`
-    // TODO: This currently triggers the lint
-    let _ = x?;
+    let _ = if let Some(x) = x {
+        x
+    } else {
+        // Please keep this comment
+        return None;
+    };
 
     // `is_none` + comment before `return`
-    // TODO: This currently triggers the lint
-    x?;
+    if x.is_none() {
+        // Please keep this comment
+        return None;
+    }
 
     // `if let` against `Some` + other code before `return`
     let _ = if let Some(x) = x {
@@ -344,16 +341,24 @@ fn result_to_unchanged_err() -> Result<u8, u8> {
     }
 
     // `if let` against `Ok` + comment before `return`
-    // TODO: This currently triggers the lint
-    let _ = x?;
+    let _ = if let Ok(x) = x {
+        x
+    } else {
+        // Please keep this comment
+        return x;
+    };
 
     // `if let` against `Err` using destructured variable + comment before `return`
-    // TODO: This currently triggers the lint
-    x?;
+    if let Err(e) = x {
+        // Please keep this comment
+        return Err(e);
+    }
 
     // `if let` against `Err` using original variable + comment before `return`
-    // TODO: This currently triggers the lint
-    x?;
+    if let Err(y) = x {
+        // Please keep this comment
+        return x;
+    }
 
     // `is_err` + comment before `return`
     if x.is_err() {
@@ -388,8 +393,12 @@ fn result_to_unchanged_err() -> Result<u8, u8> {
     }
 
     // `if let` against `Ok` + other code in "then"
-    // TODO: This currently triggers the lint
-    let _ = x?;
+    let _ = if let Ok(x) = x {
+        do_something();
+        x
+    } else {
+        return x;
+    };
 
     // `if let` against `Err` + `else`
     if let Err(e) = x {
