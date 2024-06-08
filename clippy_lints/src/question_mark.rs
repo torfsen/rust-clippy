@@ -14,7 +14,7 @@ use clippy_utils::{
 use rustc_ast::BindingMode;
 use rustc_errors::Applicability;
 
-use rustc_hir::LangItem::{self, ResultErr};
+use rustc_hir::LangItem::{self, OptionNone, ResultErr};
 use rustc_hir::{ByRef, Expr, ExprKind, LetStmt, Node, PatKind, Stmt, StmtKind};
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_session::impl_lint_pass;
@@ -174,9 +174,9 @@ impl QuestionMark {
     /// (suggests `z?`)
     ///
     /// ```ignore
-    /// if let Some(y) = g() { y } else { return Err(..) };
+    /// if let None = z { return None }
     /// ```
-    /// (suggests `g().ok_or(...)?` or `g().ok_or_else(|| ..)?`)
+    /// (suggests `z?`)
     ///
     /// ```ignore
     /// if let Ok(y) = h() { y } else { return None };
@@ -208,71 +208,98 @@ impl QuestionMark {
             }) = higher::IfLet::hir(cx, expr)
             && implements_try(cx, let_expr)
             && !is_else_clause(cx.tcx, expr)
-            && let PatKind::TupleStruct(ref path1, [field], ddpos) = let_pat.kind
-            && !is_refutable(cx, field)
-            && ddpos.as_opt_usize().is_none()
-            && let PatKind::Binding(BindingMode(by_ref, _), bind_id, _, None) = field.kind
         {
             let mut applicability = Applicability::MachineApplicable;
-            let res = cx.qpath_res(path1, let_pat.hir_id);
             let msg;
             let call;
+            let by_ref;
 
-            if if_else.is_none() {
-                // No `else` block
+            if let PatKind::Path(ref path1) = let_pat.kind
+                && is_res_lang_ctor(cx, cx.qpath_res(path1, let_pat.hir_id), OptionNone)
+                && if_else.is_none()
+                // It's `if let None = x { .. }`
+                && let Some(QuestionMarkBlock {
+                    value: block_value,
+                    has_return: true,
+                    ..
+                }) = QuestionMarkBlock::from_expr(cx, if_then)
+                && match block_value {
+                    // `return None`
+                    QuestionMarkBlockValue::None => true,
+                    // `return x` where `x` is the variable that was matched against
+                    QuestionMarkBlockValue::Var(var_id) => extract_var(let_expr) == Some(var_id),
+                    _ => false,
+                }
+            {
+                msg = "this block may be rewritten with the `?` operator".to_owned();
+                call = String::new();
+                by_ref = ByRef::No;
+            } else if let PatKind::TupleStruct(ref path1, [field], ddpos) = let_pat.kind
+                && !is_refutable(cx, field)
+                && ddpos.as_opt_usize().is_none()
+                && let PatKind::Binding(BindingMode(by_ref_, _), bind_id, _, None) = field.kind
+            {
+                by_ref = by_ref_;
+                let res = cx.qpath_res(path1, let_pat.hir_id);
 
-                // Check if the pattern is `Err(..)`
-                if is_res_lang_ctor(cx, res, ResultErr)
-                    && let Some(QuestionMarkBlock {
-                        value: block_value,
-                        has_return: true,
-                        ..
-                    }) = QuestionMarkBlock::from_expr(cx, if_then)
-                    && match block_value {
-                        // Either return `Err(x)` where `x` is the same variable as inside the `Err` pattern
-                        QuestionMarkBlockValue::Err(err_arg) => extract_var(err_arg) == Some(bind_id),
-                        // Or, if we matched against a variable, return that
-                        QuestionMarkBlockValue::Var(var_id) => extract_var(let_expr) == Some(var_id),
-                        _ => false,
+                if if_else.is_none() {
+                    // No `else` block
+
+                    // Check if the pattern is `Err(..)`
+                    if is_res_lang_ctor(cx, res, ResultErr)
+                        && let Some(QuestionMarkBlock {
+                            value: block_value,
+                            has_return: true,
+                            ..
+                        }) = QuestionMarkBlock::from_expr(cx, if_then)
+                        && match block_value {
+                            // Either return `Err(x)` where `x` is the same variable as inside the `Err` pattern
+                            QuestionMarkBlockValue::Err(err_arg) => extract_var(err_arg) == Some(bind_id),
+                            // Or, if we matched against a variable, return that
+                            QuestionMarkBlockValue::Var(var_id) => extract_var(let_expr) == Some(var_id),
+                            _ => false,
+                        }
+                    {
+                        msg = "this block may be rewritten with the `?` operator".to_owned();
+                        call = String::new();
+                    } else {
+                        return;
                     }
-                {
-                    msg = "this block may be rewritten with the `?` operator".to_owned();
-                    call = String::new();
                 } else {
-                    return;
+                    // There is an `else` block
+
+                    // Check if the argument to `Some`/`Ok` matches the expression in the "then" block
+                    if path_to_local_id(peel_blocks(if_then), bind_id)
+                        && let Some(else_block) = QuestionMarkBlock::from_expr(cx, if_else.unwrap())
+                        && else_block.has_return
+                        // If the `else`` block returns a variable it must be the same as the one the pattern is compared to
+                        && {
+                            match else_block.value {
+                                QuestionMarkBlockValue::Var(return_var) => extract_var(let_expr) == Some(return_var),
+                                _ => true,
+                            }
+                        }
+                    {
+                        let Some(input_type) = OptionOrResult::from_some_or_ok(cx, res) else {
+                            return;
+                        };
+                        match else_block.prepare_suggestion(input_type, &mut applicability) {
+                            Some(QuestionMarkBlockSuggestion::QuestionMarkOnly) => {
+                                msg = "this block may be rewritten with the `?` operator".to_owned();
+                                call = String::new();
+                            },
+                            Some(QuestionMarkBlockSuggestion::MethodCall(method_name, call_)) => {
+                                msg = format!("this block may be rewritten with `{method_name}` and the `?` operator");
+                                call = call_;
+                            },
+                            None => return,
+                        };
+                    } else {
+                        return;
+                    }
                 }
             } else {
-                // There is an `else` block
-
-                // Check if the argument to `Some`/`Ok` matches the expression in the "then" block
-                if path_to_local_id(peel_blocks(if_then), bind_id)
-                    && let Some(else_block) = QuestionMarkBlock::from_expr(cx, if_else.unwrap())
-                    && else_block.has_return
-                    // If the `else`` block returns a variable it must be the same as the one the pattern is compared to
-                    && {
-                        match else_block.value {
-                            QuestionMarkBlockValue::Var(return_var) => extract_var(let_expr) == Some(return_var),
-                            _ => true,
-                        }
-                    }
-                {
-                    let Some(input_type) = OptionOrResult::from_some_or_ok(cx, res) else {
-                        return;
-                    };
-                    match else_block.prepare_suggestion(input_type, &mut applicability) {
-                        Some(QuestionMarkBlockSuggestion::QuestionMarkOnly) => {
-                            msg = "this block may be rewritten with the `?` operator".to_owned();
-                            call = String::new();
-                        },
-                        Some(QuestionMarkBlockSuggestion::MethodCall(method_name, call_)) => {
-                            msg = format!("this block may be rewritten with `{method_name}` and the `?` operator");
-                            call = call_;
-                        },
-                        None => return,
-                    };
-                } else {
-                    return;
-                }
+                return;
             }
             let receiver_str = snippet_with_applicability(cx, let_expr.span, "..", &mut applicability);
             let requires_semi = matches!(cx.tcx.parent_hir_node(expr.hir_id), Node::Stmt(_));

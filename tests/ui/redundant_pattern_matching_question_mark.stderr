@@ -7,6 +7,17 @@ LL |     if let None = x {
    = note: `-D clippy::redundant-pattern-matching` implied by `-D warnings`
    = help: to override `-D warnings` add `#[allow(clippy::redundant_pattern_matching)]`
 
+error: this block may be rewritten with the `?` operator
+  --> tests/ui/redundant_pattern_matching_question_mark.rs:15:5
+   |
+LL | /     if let None = x {
+LL | |         return x;
+LL | |     };
+   | |_____^ help: replace it with: `x?;`
+   |
+   = note: `-D clippy::question-mark` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::question_mark)]`
+
 error: redundant pattern matching, consider using `is_none()`
   --> tests/ui/redundant_pattern_matching_question_mark.rs:21:12
    |
@@ -61,5 +72,5 @@ error: redundant pattern matching, consider using `is_err()`
 LL |     if let Err(_) = x {
    |     -------^^^^^^---- help: try: `if x.is_err()`
 
-error: aborting due to 10 previous errors
+error: aborting due to 11 previous errors
 
